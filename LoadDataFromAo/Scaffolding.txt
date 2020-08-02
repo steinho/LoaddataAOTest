@@ -1,0 +1,1 @@
+﻿Scaffold-DbContext "Server=(local);Database=SpeciesObservation_Debug;Trusted_Connection=True;" Microsoft.EntityFrameworkCore.SqlServer -Tables "Sighting","Site","User","Area","AreaDataset","SightingState","SightingRelation","SiteAreas"  -OutputDir Models -ContextDir . -Context AoContext
