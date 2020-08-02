@@ -18,22 +18,26 @@ namespace LoadDataFromAo.RavenIndexes
             public int BrukerId { get; set; }
 
             public int Count { get; set; }
+            public int Year { get; set; }
         }
         public RapporteringsvolumIndex()
         {
             Map = sightings => from sighting in sightings
+                from year in new int[] {sighting.StartDate.Year, 0}
                 //let categoryName = LoadDocument<Category>(product.Category).Name
                 select new Result
                 {
                     BrukerId = sighting.ReporterId.FirstOrDefault(),
+                    Year = year,
                     Count = 1
                 };
 
             Reduce = results => from result in results
-                group result by result.BrukerId into g
-                select new
+                group result by new {result.BrukerId,result.Year } into g
+                select new Result
                 {
-                    BrukerId = g.Key,
+                    BrukerId = g.Key.BrukerId,
+                    Year = g.Key.Year,
                     Count = g.Sum(x => x.Count)
                 };
 
