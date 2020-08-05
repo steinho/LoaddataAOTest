@@ -19,6 +19,14 @@ namespace LoadDataFromAo.RavenIndexes
 
             public int Count { get; set; }
             public int Year { get; set; }
+            public int[] Taxons { get; set; }
+            public TaxonCount[] TaxonCounts  { get; set; }
+
+        public class TaxonCount
+            {
+                public int TaxonId { get; set; }
+                public int Count { get; set; }
+            }
         }
         public RapporteringsvolumIndex()
         {
@@ -29,7 +37,9 @@ namespace LoadDataFromAo.RavenIndexes
                 {
                     BrukerId = sighting.ReporterId.FirstOrDefault(),
                     Year = year,
-                    Count = 1
+                    Count = 1,
+                    Taxons = new []{ sighting.TaxonId },
+                    TaxonCounts = new Result.TaxonCount[] {new Result.TaxonCount() { TaxonId = sighting.TaxonId, Count = 1} }
                 };
 
             Reduce = results => from result in results
@@ -38,9 +48,12 @@ namespace LoadDataFromAo.RavenIndexes
                 {
                     BrukerId = g.Key.BrukerId,
                     Year = g.Key.Year,
-                    Count = g.Sum(x => x.Count)
+                    Count = g.Sum(x => x.Count),
+                    Taxons = g.SelectMany(x => x.Taxons).Distinct().ToArray(),
+                    TaxonCounts = g.SelectMany(x => x.TaxonCounts).GroupBy(x => x.TaxonId).Select(y => new Result.TaxonCount() { TaxonId = y.Key, Count = y.Sum(z => z.Count) }).ToArray()
                 };
-
+            Index(x => x.TaxonCounts, FieldIndexing.No);
+            Store(x=>x.TaxonCounts, FieldStorage.Yes);
         }
     }
 
@@ -88,7 +101,7 @@ namespace LoadDataFromAo.RavenIndexes
             Index(x => x.SpeciesLists, FieldIndexing.No);
             Stores.Add(x => x.SpeciesLists, FieldStorage.Yes);
             //Stores.Add(x => x.SpeciesLists, FieldStorage.Yes);
-
+            // trolig trenger vi ikke indeksere brukerid - skal vel ikke spørre på denne
         }
 
 

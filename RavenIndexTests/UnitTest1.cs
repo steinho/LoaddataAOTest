@@ -99,6 +99,42 @@ namespace RavenIndexTests
                 }
             }
         }
+
+        [TestMethod]
+        public void TestRapporteringsvolumSiste≈rForArt()
+        {
+
+            using (var store = GetDocumentStore())
+            {
+                store.ExecuteIndex(new LoadDataFromAo.RavenIndexes.RapporteringsvolumIndex());
+                using (var session = store.OpenSession())
+                {
+                    session.Store(AOStuff.GetObsMalvik(1, AOStuff.Hoem, AOStuff.KornSpurv, new DateTime(2019, 2, 2)));
+
+                    session.Store(AOStuff.GetObsMalvik(2, AOStuff.Hoem, AOStuff.KornSpurv, new DateTime(2019, 1, 2)));
+
+                    session.Store(AOStuff.GetObsMalvik(3, AOStuff.Pedersen, AOStuff.KornSpurv, new DateTime(2019, 1, 2)));
+
+                    session.SaveChanges();
+                }
+
+                WaitForIndexing(
+                    store); //If we want to query documents sometime we need to wait for the indexes to catch up
+                using (var session = store.OpenSession())
+                {
+                    var quary = session
+                        .Query<LoadDataFromAo.RavenIndexes.RapporteringsvolumIndex.Result,
+                            LoadDataFromAo.RavenIndexes.RapporteringsvolumIndex>().Where(x => x.Year == 2019 && x.Taxons.Contains(AOStuff.KornSpurv)).Select(y=>new
+                            {Brukerid = y.BrukerId,TaxonId= AOStuff.KornSpurv, Count = y.TaxonCounts.First(z=>z.TaxonId == AOStuff.KornSpurv).Count }).OrderByDescending(i=>i.Count);
+                    var query = quary.ToArray();
+                    Assert.AreEqual(AOStuff.Hoem, query.First().Brukerid, "hoems");
+                    Assert.AreEqual(AOStuff.Pedersen, query[1].Brukerid, "pedersens");
+                    Assert.AreEqual(2, query.First().Count, "hoems 2 funn");
+                    Assert.AreEqual(1, query[1].Count, "hoems 2 funn");
+
+                }
+            }
+        }
     }
 
 }
