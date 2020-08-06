@@ -56,7 +56,113 @@ namespace LoadDataFromAo.RavenIndexes
             Store(x=>x.TaxonCounts, FieldStorage.Yes);
         }
     }
+    public class ObservationvolumIndex : AbstractIndexCreationTask<SightingIndex, ObservationvolumIndex.Result>
+    {
+        public class Result
+        {
+            public int BrukerId { get; set; }
 
+            public int Count { get; set; }
+            public int TaxonCount { get; set; }
+            public int Year { get; set; }
+            public int[] Taxons { get; set; }
+            public TaxonStat[] TaxonStats{ get; set; }
+
+            public class TaxonStat
+            {
+                public int TaxonId { get; set; }
+                public int Count { get; set; }
+                public DateTime Date { get; set; }
+            }
+        }
+        public ObservationvolumIndex()
+        {
+            Map = sightings => from sighting in sightings
+                from year in new int[] { sighting.StartDate.Year, 0 }
+                from obervator in sighting.ObserverIds
+                //let categoryName = LoadDocument<Category>(product.Category).Name
+                select new Result
+                {
+                    BrukerId = obervator,
+                    Year = year,
+                    Count = 1,
+                    TaxonCount = 0,
+                    Taxons = new[] { sighting.TaxonId },
+                    TaxonStats = new Result.TaxonStat[] { new Result.TaxonStat() { TaxonId = sighting.TaxonId, Count = 1, Date = sighting.StartDate} }
+                };
+
+            Reduce = results => from result in results
+                group result by new { result.BrukerId, result.Year } into g
+                let rows = g.SelectMany(x => x.TaxonStats).GroupBy(x => x.TaxonId).Select(y => new Result.TaxonStat() { TaxonId = y.Key, Count = y.Sum(z => z.Count), Date = y.Min(i => i.Date) }).ToArray()
+                                select new Result
+                {
+                    BrukerId = g.Key.BrukerId,
+                    Year = g.Key.Year,
+                    Count = g.Sum(x => x.Count),
+                    TaxonCount = rows.Length,
+                    Taxons = g.SelectMany(x => x.Taxons).Distinct().ToArray(),
+                    TaxonStats = rows
+                };
+            Index(x => x.TaxonStats, FieldIndexing.No);
+            Store(x => x.TaxonStats, FieldStorage.Yes);
+        }
+    }
+    public class AreaIndex : AbstractIndexCreationTask<SightingIndex, AreaIndex.Result>
+    {
+        public class Result
+        {
+            public int AreaId { get; set; }
+            public int Count { get; set; }
+            public int Year { get; set; }
+            public int[] Taxons { get; set; }
+            public TaxonCount[] TaxonCounts { get; set; }
+
+        public class TaxonCount
+        {
+            public int TaxonId { get; set; }
+            public DateTime Date { get; set; }
+            public int Count { get; set; }
+        }
+        }
+
+
+        //public class SpeciesList
+        //{
+        //    public int TaxonId { get; set; }
+        //    public DateTime Date { get; set; }
+        //}
+        public AreaIndex()
+        {
+            Map = sightings => from sighting in sightings
+                from year in new int[] { sighting.StartDate.Year, 0 }
+                               from areas in sighting.AreaIds
+                               select new Result
+                               {
+                                   AreaId = areas,
+                                   Year = year,
+                                   Taxons = new[] { sighting.TaxonId },
+                                   TaxonCounts = new Result.TaxonCount[] { new Result.TaxonCount() { TaxonId = sighting.TaxonId, Count = 1, Date = sighting.StartDate} },
+                                   Count = 1
+                               };
+
+            Reduce = results => from result in results
+                                group result by new { result.AreaId, result.Year} into g
+                                let rows = g.SelectMany(x => x.TaxonCounts).GroupBy(x => x.TaxonId).Select(y => new Result.TaxonCount() { TaxonId = y.Key, Count = y.Sum(z => z.Count), Date = y.Min(i=>i.Date)}).ToArray()
+
+                                select new Result
+                                {
+                                    AreaId = g.Key.AreaId,
+                                    Year = g.Key.Year,
+                                    Count = rows.Length,
+                                    Taxons = g.SelectMany(x => x.Taxons).Distinct().ToArray(),
+                                    TaxonCounts = g.SelectMany(x => x.TaxonCounts).GroupBy(x => x.TaxonId).Select(y => new Result.TaxonCount() { TaxonId = y.Key, Count = y.Sum(z => z.Count), Date = y.Min(i => i.Date) }).ToArray()
+                                };
+            Index(x => x.TaxonCounts, FieldIndexing.No);
+            Store(x => x.TaxonCounts, FieldStorage.Yes);
+        }
+
+
+    }
     public class ObservatorAreaIndex : AbstractIndexCreationTask<SightingIndex, ObservatorAreaIndex.Result>
     {
         public class Result
