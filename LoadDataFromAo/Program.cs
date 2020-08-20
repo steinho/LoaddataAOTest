@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using LoadDataFromAo.Indexes;
-using LoadDataFromAo.Models;
 using LoadDataFromAo.RavenIndexes;
 using Microsoft.EntityFrameworkCore;
-using Nest;
 using Raven.Client.Documents.Indexes;
-using Raven.Client.Documents.Session;
 
 namespace LoadDataFromAo
 {
@@ -15,27 +13,146 @@ namespace LoadDataFromAo
     {
         static void Main(string[] args)
         {
-            first();
+            //LastSite();
+            //TestSimpleSiteIndexes();
+            //TestSimpleSiteIndexes2();
+            //TestAggregeringSite();
+            LastFraAO();
         }
 
-        private static void first()
+        private static void TestAggregeringSite()
+        {
+            var documentStore = DocumentStoreHolder.Store;
+            documentStore.ExecuteIndexes(new[] { new SiteIndexes.SimpleSiteIndex2() });//, });
+
+            // test spørring
+            var session = documentStore.OpenSession();
+            var resultat = (
+                    from s in session.Query<TestModels.Site>()
+                    group s by s.ParentSiteId into g
+                    select new
+                    {
+                        Sum = g.Count(),
+                        ParentId = g.Key
+                    }
+                )
+                .ToList();
+            Console.WriteLine(resultat.First().Sum);
+
+            var resultat2 = (
+                    from s in session.Query<TestModels.Site, SiteIndexes.SimpleSiteIndex>()
+                    group s by s.ParentSiteId into g
+                    select new
+                    {
+                        Sum = g.Count(),
+                        ParentId = g.Key
+                    }
+                )
+                .ToList();
+            Console.WriteLine(resultat2.First().Sum);
+        }
+
+        private static void TestSimpleSiteIndexes2()
+        {
+            var documentStore = DocumentStoreHolder.Store;
+            documentStore.ExecuteIndexes(new[] { new SiteIndexes.SimpleSiteIndex2() });//, });
+
+            // test spørring
+            var session = documentStore.OpenSession();
+            var resultat = session
+                .Query<RavenIndexes.SiteIndexes.SimpleSiteIndex2.Result, RavenIndexes.SiteIndexes.SimpleSiteIndex2>()
+                .Where(x => x.ParentName == "abelvær")
+                .OfType<TestModels.Site>().ToList();
+            // feil type
+            // Type Result - gir bare mening på map reduce indexer 
+            Console.WriteLine(resultat.First().Name);
+
+
+            // aggregering
+
+
+        }
+
+        private static void TestSimpleSiteIndexes()
+        {
+            var documentStore = DocumentStoreHolder.Store;
+            documentStore.ExecuteIndexes(new []{ new SiteIndexes.SimpleSiteIndex() });//, });
+
+            // test spørring
+            var session = documentStore.OpenSession();
+            //var resultat = session.Query<TestModels.Site, RavenIndexes.SiteIndexes.SimpleSiteIndex>()
+            //    .Where(x => x.Name == "  brettingvegen 2-1641").ToList();
+            //// får hele dokumentet - men kan bare spørre på indekserte felt
+            //Console.WriteLine(resultat.First().PresentationName);
+
+            
+            // test uten index
+            var resultat2 = session.Query<TestModels.Site>()
+                .Where(x => x.PresentationName.StartsWith("  Bretting")).ToList();
+                            //&& x.UserId == 0).ToList();
+            // && startswith
+            Console.WriteLine(resultat2.First().PresentationName);
+
+
+        }
+
+        private static void LastSite()
+        {
+            var documentStore = DocumentStoreHolder.Store;
+            var batchSize = 10000;
+            var position = 0;
+
+
+            var optionsBuilder = new DbContextOptionsBuilder<AoContext>();
+            optionsBuilder.UseSqlServer(
+                "Server=.;Database=.;User=*;Password=*;");
+
+            while (true)
+            {
+                using var context = new AoContext(optionsBuilder.Options);
+                var users = context.Site.Skip(position).Take(batchSize).Select(x => new TestModels.Site()
+                {
+                    Id = "Site/" + x.Id,
+                    UserId = x.UserId ?? 0,
+                    Name = x.Name,
+                    ParentSiteId = "Site/" + x.ParentId,
+                    PresentationName = x.PresentationName,
+                    X = x.Xcoord,
+                    Y = x.Ycoord,
+                    Accuracy = x.Accuracy,
+                    Date = x.EditDate
+                }).ToArray();
+
+                if (users.Length == 0)
+                {
+                    break;
+                }
+
+                position += batchSize;
+                using var ravenSession = documentStore.OpenSession();
+                foreach (var site in users)
+                {
+                    ravenSession.Store(site);
+                }
+
+                ravenSession.SaveChanges();
+            }
+        }
+
+        private static void LastFraAO()
         {
             var siteAreas = new Dictionary<int, List<int>>();
-
-            //Elasticsearch setup
-            //var settings = new ConnectionSettings(new Uri("http://localhost:9200"))
-            //.DefaultIndex("sightings");
-
-            //var client = new ElasticClient(settings);
-
-            //ravendb setup
+            
             var theStore = DocumentStoreHolder.Store;
             var batchSize = 100;
+            
             theStore.ExecuteIndexes(new AbstractIndexCreationTask[]
                 {new RapporteringsvolumIndex(),
                     //new ObservatorAreaIndex(),
                     new ObservatorFirstIndex2(),
                     new ObservatorAreaIndex2()});
+
+            
             for (int i = 10297801; i < 30000000; i += batchSize)
             {
                 using (var context = new AoContext())
