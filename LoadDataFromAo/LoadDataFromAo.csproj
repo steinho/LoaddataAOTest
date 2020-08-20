@@ -13,7 +13,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="NEST" Version="7.7.1" />
-    <PackageReference Include="RavenDB.Client" Version="4.2.8" />
+    <PackageReference Include="RavenDB.Client" Version="4.2.105" />
   </ItemGroup>
 
   <ItemGroup>
