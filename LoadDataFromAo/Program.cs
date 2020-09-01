@@ -147,11 +147,16 @@ namespace LoadDataFromAo
             var batchSize = 100;
             
             theStore.ExecuteIndexes(new AbstractIndexCreationTask[]
-                {new RapporteringsvolumIndex(),
-                    new ObservationvolumIndex(),
-                    new AreaIndex(),
-                    new ObservatorFirstIndex2(),
-                    new ObservatorAreaIndex2()});
+                { 
+                    //new RapporteringsvolumIndex(),
+                    //new ObservationvolumIndex(),
+                    //new AreaIndex(),
+                    //new ObservatorFirstIndex2(),
+                    //new ObservatorAreaIndex2(),
+                    new AreaYearTaxonIndex(), 
+                    new AreaYearIndex(), 
+
+                });
 
             
             for (int i = 10297801; i < 30000000; i += batchSize)

@@ -163,6 +163,90 @@ namespace LoadDataFromAo.RavenIndexes
 
 
     }
+    public class AreaYearTaxonItem
+    {
+        public int AreaId { get; set; }
+        public int Count { get; set; }
+        public int Year { get; set; }
+        public int TaxonId { get; set; }
+        public string Date { get; set; }
+    }
+    public class AreaYearItem
+    {
+        public int AreaId { get; set; }
+        public int Count { get; set; }
+        public int Year { get; set; }
+        public TaxonCount[] TaxonCounts { get; set; }
+        public int SpeciesCount { get; set; }
+
+        public class TaxonCount
+        {
+            public int TaxonId { get; set; }
+            public string Date { get; set; }
+            public int Count { get; set; }
+        }
+    }
+    public class AreaYearTaxonIndex : AbstractIndexCreationTask<SightingIndex, AreaYearTaxonItem>
+    {
+        public AreaYearTaxonIndex()
+        {
+            Map = sightings => from sighting in sightings
+                               //from year in new int[] { sighting.StartDate.Year, 0 }
+                               from areas in sighting.AreaIds
+                               select new AreaYearTaxonItem
+                               {
+                                   AreaId = areas,
+                                   Year = sighting.StartDate.Year,
+                                   TaxonId = sighting.TaxonId,
+                                   Date = sighting.StartDate.ToString("yyyy-MM-dd"),
+                                   Count = 1
+                               };
+
+            Reduce = results => from result in results
+                                group result by new { result.AreaId, result.Year, result.TaxonId } into g
+                                //let rows = g.SelectMany(x => x.TaxonCounts).GroupBy(x => x.TaxonId).Select(y => new Result.TaxonCount() { TaxonId = y.Key, Count = y.Sum(z => z.Count), Date = y.Min(i => i.Date) }).ToArray()
+
+                                select new AreaYearTaxonItem
+                                {
+                                    AreaId = g.Key.AreaId,
+                                    Year = g.Key.Year,
+                                    Count = g.Sum(x=>x.Count),
+                                    TaxonId = g.Key.TaxonId,
+                                    Date = g.Min(i => i.Date)
+                                };
+            OutputReduceToCollection = "AreaYearTaxonItems";
+        }
+    }
+    public class AreaYearIndex : AbstractIndexCreationTask<AreaYearTaxonItem, AreaYearItem>
+    {
+        public AreaYearIndex()
+        {
+            Map = sightings => from item in sightings
+                from year in new int[] { item.Year, 0 }
+                               select new AreaYearItem
+                {
+                    AreaId = item.AreaId,
+                    Year = year,
+                    TaxonCounts = new []{new AreaYearItem.TaxonCount(){Count = item.Count, Date = item.Date, TaxonId = item.TaxonId} },
+                    Count = item.Count,
+                    SpeciesCount = 1
+                };
+
+            Reduce = results => from result in results
+                group result by new { result.AreaId, result.Year } into g
+                let counts = g.SelectMany(x => x.TaxonCounts).GroupBy(x => x.TaxonId).Select(y => new AreaYearItem.TaxonCount() { TaxonId = y.Key, Count = y.Sum(z => z.Count), Date = y.Min(i => i.Date) }).ToArray()
+                                select new AreaYearItem
+                {
+                    AreaId = g.Key.AreaId,
+                    Year = g.Key.Year,
+                    Count = g.Sum(x => x.Count),
+                    TaxonCounts = counts,
+                    SpeciesCount = counts.Length
+                };
+            Index(x => x.TaxonCounts, FieldIndexing.No);
+            Store(x => x.TaxonCounts, FieldStorage.Yes);
+        }
+    }
     public class ObservatorAreaIndex : AbstractIndexCreationTask<SightingIndex, ObservatorAreaIndex.Result>
     {
         public class Result
